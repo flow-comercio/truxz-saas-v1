@@ -1,0 +1,11 @@
+.env
+.env.local
+.env.production
+node_modules/
+.next/
+out/
+dist/
+*.log
+.DS_Store
+uploads/
+src/db/migrations/

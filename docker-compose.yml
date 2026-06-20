@@ -1,0 +1,94 @@
+version: '3.9'
+
+services:
+  # ── Banco de Dados ─────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: truxz-db
+    restart: always
+    environment:
+      POSTGRES_DB:       truxz_db
+      POSTGRES_USER:     truxz
+      POSTGRES_PASSWORD: Win7830@
+      PGDATA:            /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"   # apenas local
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U truxz -d truxz_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - truxz
+
+  # ── Aplicação Next.js ──────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: truxz-app
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL:       "postgresql://truxz:Win7830@@postgres:5432/truxz_db"
+      NEXTAUTH_SECRET:    "truxz-secret-Win7830@-production-key-2024"
+      NEXTAUTH_URL:       "${NEXTAUTH_URL:-https://seudominio.com.br}"
+      NEXT_PUBLIC_APP_URL:"${NEXT_PUBLIC_APP_URL:-https://seudominio.com.br}"
+      NODE_ENV:           "production"
+      ASAAS_API_KEY:      "${ASAAS_API_KEY:-}"
+      ASAAS_WEBHOOK_SECRET: "${ASAAS_WEBHOOK_SECRET:-}"
+      ASAAS_ENV:          "${ASAAS_ENV:-sandbox}"
+      SMTP_HOST:          "${SMTP_HOST:-}"
+      SMTP_PORT:          "${SMTP_PORT:-587}"
+      SMTP_USER:          "${SMTP_USER:-}"
+      SMTP_PASS:          "${SMTP_PASS:-}"
+      UPLOAD_DIR:         "/app/uploads"
+    volumes:
+      - uploads:/app/uploads
+    ports:
+      - "127.0.0.1:3333:3333"   # apenas local — Nginx faz o proxy
+    networks:
+      - truxz
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3333/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Backup automático ──────────────────────────────────────────────────────
+  backup:
+    image: postgres:16-alpine
+    container_name: truxz-backup
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: Win7830@
+    volumes:
+      - ./backups:/backups
+    entrypoint: >
+      sh -c "
+        while true; do
+          FILENAME=/backups/backup_$$(date +%Y%m%d_%H%M%S).sql.gz
+          pg_dump -h postgres -U truxz truxz_db | gzip > $$FILENAME
+          echo \"[BACKUP] $$FILENAME criado\"
+          # Mantém apenas os últimos 7 backups diários
+          ls -t /backups/backup_*.sql.gz | tail -n +8 | xargs rm -f 2>/dev/null
+          sleep 86400
+        done
+      "
+    networks:
+      - truxz
+
+volumes:
+  postgres_data:
+  uploads:
+
+networks:
+  truxz:
+    driver: bridge
