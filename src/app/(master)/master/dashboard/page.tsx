@@ -1,71 +1,106 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { db } from '@/db'
-import { lojas, assinaturas, agendamentos, pagamentos } from '@/db/schema'
+import { lojas, pagamentos, agendamentos } from '@/db/schema'
 import { eq, count, sql } from 'drizzle-orm'
 import { formatCurrency } from '@/lib/utils'
-import { Store, DollarSign, TrendingUp, Users } from 'lucide-react'
+import { Gauge, Fuel, Flag, Store, TrendingUp, Plus, BarChart3 } from 'lucide-react'
 import Link from 'next/link'
+import { StatCard, GlassCard } from '@/components/ui/glass-card'
 
 export default async function MasterDashboard() {
   const [totalLojas, lojasAtivas, receitaTotal, totalAgendamentos] = await Promise.all([
     db.select({ count: count() }).from(lojas),
     db.select({ count: count() }).from(lojas).where(eq(lojas.status, 'ativa')),
-    db.select({ total: sql<string>`COALESCE(SUM(${pagamentos.valor}), 0)` })
-      .from(pagamentos).where(eq(pagamentos.status, 'pago')),
+    db.select({ total: sql<string>`COALESCE(SUM(${pagamentos.valor}), 0)` }).from(pagamentos).where(eq(pagamentos.status, 'pago')),
     db.select({ count: count() }).from(agendamentos),
   ])
 
-  const stats = [
-    { label: 'Total de Lojas', value: totalLojas[0].count, icon: Store, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Lojas Ativas', value: lojasAtivas[0].count, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Receita Total', value: formatCurrency(parseFloat(receitaTotal[0]?.total || '0')), icon: DollarSign, color: 'text-orange-600', bg: 'bg-orange-50' },
-    { label: 'Total Agendamentos', value: totalAgendamentos[0].count, icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
-  ]
+  const boxes = totalLojas[0].count
+  const boxesAtivos = lojasAtivas[0].count
+  const taxaAtivacao = boxes > 0 ? Math.round((boxesAtivos / boxes) * 100) : 0
 
   return (
-    <div className="p-4 lg:p-6 space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Painel Master</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Visão geral da plataforma</p>
-      </div>
+    <div className="p-4 lg:p-6 space-y-5">
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {stats.map(stat => {
-          const Icon = stat.icon
-          return (
-            <div key={stat.label} className="card">
-              <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center mb-3`}>
-                <Icon className={`w-5 h-5 ${stat.color}`} />
-              </div>
-              <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{stat.label}</p>
+      {/* ── HERO CAMPEONATO ─────────────────────── */}
+      <div className="relative rounded-2xl overflow-hidden carbon-bg"
+        style={{ border: '1px solid rgba(220,0,0,0.2)' }}>
+        {/* chequered topo */}
+        <div className="absolute top-0 left-0 right-0 h-2 checkers-stripe opacity-50" />
+        <div className="absolute top-2 left-0 right-0 h-px"
+          style={{ background: 'linear-gradient(90deg, transparent, #DC0000 30%, #FF8700 70%, transparent)' }} />
+
+        <div className="relative p-5 pt-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[4px] mb-1" style={{ color: '#DC0000' }}>
+                TRUXZ · CHAMPIONSHIP
+              </p>
+              <h1 className="text-2xl font-black text-white font-display tracking-wider">Central do Campeonato</h1>
+              <p className="text-xs mt-1 font-racing" style={{ color: '#55556A' }}>Visão geral de todos os circuitos</p>
             </div>
-          )
-        })}
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'linear-gradient(135deg, #DC0000, #7B0000)', boxShadow: '0 0 28px rgba(220,0,0,0.45)' }}>
+              <Flag className="w-6 h-6 text-white" />
+            </div>
+          </div>
+
+          {/* taxa de ativação */}
+          <div className="mt-5">
+            <div className="flex justify-between text-xs mb-1.5 font-racing">
+              <span style={{ color: '#A0A0B8' }}>Boxes Ativos no Campeonato</span>
+              <span style={{ color: '#DC0000' }}>{taxaAtivacao}%</span>
+            </div>
+            <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+              <div className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${taxaAtivacao}%`, background: 'linear-gradient(90deg, #DC0000, #FF8700)' }} />
+            </div>
+            <p className="text-[10px] font-racing mt-1" style={{ color: '#55556A' }}>
+              {boxesAtivos} de {boxes} boxes em operação
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="card">
-        <h3 className="font-semibold text-gray-900 mb-4">Ações Rápidas</h3>
+      {/* ── STAT CARDS ──────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard label="Boxes no Grid" value={boxes}
+          icon={<Store className="w-5 h-5" />} color="purple" />
+        <StatCard label="Boxes Ativos" value={boxesAtivos}
+          icon={<Gauge className="w-5 h-5" />} color="green" />
+        <StatCard label="Receita Total" value={formatCurrency(parseFloat(receitaTotal[0]?.total || '0'))}
+          icon={<Fuel className="w-5 h-5" />} color="orange" />
+        <StatCard label="Corridas Realizadas" value={totalAgendamentos[0].count}
+          icon={<Flag className="w-5 h-5" />} color="racing" />
+      </div>
+
+      {/* ── CONTROLE DO GRID ─────────────────────── */}
+      <GlassCard className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-1 h-5 rounded-full" style={{ background: 'linear-gradient(180deg, #DC0000, #FF8700)' }} />
+          <h3 className="font-bold text-white font-display tracking-wider text-sm">Controle do Grid</h3>
+        </div>
         <div className="grid grid-cols-2 gap-2">
           {[
-            { label: 'Gerenciar Lojas', href: '/master/lojas', icon: Store },
-            { label: 'Ver Financeiro', href: '/master/financeiro', icon: DollarSign },
-            { label: 'Planos SaaS', href: '/master/planos', icon: TrendingUp },
-            { label: 'Nova Loja', href: '/master/lojas/nova', icon: Users },
+            { label: 'Gerenciar Boxes',     href: '/master/lojas',     icon: Store,      color: '#9D4EDD' },
+            { label: 'Financeiro Geral',    href: '/master/financeiro', icon: BarChart3,  color: '#4ADE80' },
+            { label: 'Planos & Categorias', href: '/master/planos',    icon: TrendingUp, color: '#FF8700' },
+            { label: 'Adicionar Box',       href: '/master/lojas/nova', icon: Plus,       color: '#DC0000' },
           ].map(a => {
             const Icon = a.icon
             return (
               <Link key={a.href} href={a.href}
-                className="flex items-center gap-2.5 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors group"
-              >
-                <Icon className="w-4 h-4 text-gray-400 group-hover:text-gray-700" />
-                <span className="text-sm font-medium text-gray-700">{a.label}</span>
+                className="quick-action flex items-center gap-3 p-3.5 rounded-xl">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: `${a.color}18`, border: `1px solid ${a.color}30` }}>
+                  <Icon className="w-4 h-4" style={{ color: a.color }} />
+                </div>
+                <span className="text-sm font-semibold font-racing" style={{ color: '#A0A0B8' }}>{a.label}</span>
               </Link>
             )
           })}
         </div>
-      </div>
+      </GlassCard>
+
     </div>
   )
 }

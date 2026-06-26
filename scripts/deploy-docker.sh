@@ -74,15 +74,15 @@ if ! command -v nginx &>/dev/null; then
   apt-get install -y nginx certbot python3-certbot-nginx 2>/dev/null
 fi
 
-cat > /etc/nginx/sites-available/auto-prime << NGINX
+cat > /etc/nginx/sites-available/truxz << NGINX
 server {
     listen 80;
-    server_name ${DOMAIN} www.${DOMAIN};
+    server_name ${DOMAIN} www.${DOMAIN} *.${DOMAIN};
     location / { proxy_pass http://127.0.0.1:3333; proxy_set_header Host \$host; }
 }
 NGINX
 
-ln -sf /etc/nginx/sites-available/auto-prime /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/truxz /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
 
 certbot --nginx -d ${DOMAIN} --non-interactive --agree-tos \

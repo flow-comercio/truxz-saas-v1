@@ -45,7 +45,8 @@ log "Sistema atualizado"
 # ── 2. FIREWALL ───────────────────────────────────────────────────────────────
 section "2/11 FIREWALL"
 ufw allow OpenSSH
-ufw allow 'Nginx Full'
+ufw allow 80/tcp
+ufw allow 443/tcp
 ufw --force enable
 log "Firewall configurado"
 
@@ -72,7 +73,10 @@ DO \$\$ BEGIN
     CREATE USER $DB_USER WITH PASSWORD '$DB_PASS';
   END IF;
 END\$\$;
-CREATE DATABASE IF NOT EXISTS $DB_NAME OWNER $DB_USER;
+SQL
+sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1 || \
+  sudo -u postgres createdb -O $DB_USER $DB_NAME
+sudo -u postgres psql <<SQL
 GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
 SQL
 log "PostgreSQL configurado"
@@ -101,7 +105,7 @@ fi
 # ── 8. AMBIENTE ───────────────────────────────────────────────────────────────
 section "8/11 VARIÁVEIS DE AMBIENTE"
 cat > $APP_DIR/.env <<ENV
-DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:5432/${DB_NAME}"
+DATABASE_URL="postgresql://${DB_USER}:$(python3 -c "import urllib.parse; print(urllib.parse.quote('${DB_PASS}', safe=''))")@localhost:5432/${DB_NAME}"
 NEXTAUTH_SECRET="truxz-secret-Win7830@-$(date +%s)"
 NEXTAUTH_URL="https://${DOMAIN}"
 NEXT_PUBLIC_APP_URL="https://${DOMAIN}"
@@ -123,9 +127,9 @@ log ".env criado"
 # ── 9. BUILD ──────────────────────────────────────────────────────────────────
 section "9/11 BUILD"
 cd $APP_DIR
-npm install --production=false
-npm run db:push 2>/dev/null && log "Migrations OK" || warn "Migrations falharam — execute: npm run db:push"
-npx tsx scripts/seed.ts 2>/dev/null && log "Seed OK" || warn "Seed falhou — execute: npx tsx scripts/seed.ts"
+npm install --production=false --legacy-peer-deps
+npx drizzle-kit push --force 2>/dev/null && log "Migrations OK" || warn "Migrations falharam — execute: npx drizzle-kit push --force"
+export $(grep -v '^#' $APP_DIR/.env | xargs) && npx tsx scripts/seed.ts 2>/dev/null && log "Seed OK" || warn "Seed falhou — execute: npx tsx scripts/seed.ts"
 npm run build
 log "Build concluído"
 

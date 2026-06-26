@@ -24,25 +24,25 @@ export default withAuth(
     const path  = req.nextUrl.pathname
     const token = req.nextauth.token
 
+    // ── Rotas sempre públicas (nunca redirecionar) ────────────────────────────
+    if (
+      path === '/' ||
+      path.startsWith('/login') ||
+      path.startsWith('/cadastrar') ||
+      path.startsWith('/api/health') ||
+      path.startsWith('/api/public/') ||
+      path.startsWith('/api/webhooks/') ||
+      path.startsWith('/_next/') ||
+      path.startsWith('/public/')
+    ) {
+      if (slug && path === '/') {
+        return NextResponse.rewrite(new URL(`/${slug}`, req.url))
+      }
+      return NextResponse.next()
+    }
+
     // ── Subdomínio detectado: reescreve para /[slug]/... ─────────────────────
     if (slug) {
-      // Rotas públicas do tenant (landing, login)
-      if (
-        path === '/' ||
-        path.startsWith('/login') ||
-        path.startsWith('/cadastrar') ||
-        path.startsWith('/api/') ||
-        path.startsWith('/_next/') ||
-        path.startsWith('/public/')
-      ) {
-        // Reescreve / para /{slug}
-        if (path === '/') {
-          return NextResponse.rewrite(new URL(`/${slug}`, req.url))
-        }
-        return NextResponse.next()
-      }
-
-      // Rotas autenticadas do tenant
       if (!token) {
         return NextResponse.redirect(new URL('/login', req.url))
       }
@@ -67,6 +67,7 @@ export default withAuth(
     return NextResponse.next()
   },
   {
+    pages: { signIn: '/login' },
     callbacks: {
       authorized: ({ token, req }) => {
         const path = req.nextUrl.pathname
@@ -88,6 +89,6 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|icons/|manifest.json).*)',
+    '/((?!_next/static|_next/image|favicon.ico|icons/|manifest.json|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.svg|.*\\.webp|.*\\.ico|.*\\.json).*)',
   ],
 }

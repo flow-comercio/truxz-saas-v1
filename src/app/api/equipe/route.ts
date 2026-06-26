@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/db'
-import { usuarios } from '@/db/schema'
+import { usuarios, operadores } from '@/db/schema'
 import { eq, and, ne } from 'drizzle-orm'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
@@ -28,8 +28,13 @@ export async function GET() {
     role: usuarios.role,
     ativo: usuarios.ativo,
     criadoEm: usuarios.criadoEm,
+    operadorId: operadores.id,
   })
   .from(usuarios)
+  .leftJoin(operadores, and(
+    eq(operadores.usuarioId, usuarios.id),
+    eq(operadores.lojaId, session.user.lojaId),
+  ))
   .where(and(
     eq(usuarios.lojaId, session.user.lojaId),
     ne(usuarios.role, 'cliente')

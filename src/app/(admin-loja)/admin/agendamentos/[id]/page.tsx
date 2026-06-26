@@ -9,15 +9,19 @@ import { ChevronLeft } from 'lucide-react'
 import { formatCurrency, formatDateTime, minutesToHours } from '@/lib/utils'
 import { AgendamentoAcoes } from '@/components/admin/agendamento-acoes'
 import { FotosAgendamento } from '@/components/admin/fotos-agendamento'
+import { Badge } from '@/components/ui/badge'
 
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  pendente:     { label: 'Pendente',     className: 'badge-warning' },
-  confirmado:   { label: 'Confirmado',   className: 'badge-info' },
-  em_andamento: { label: 'Em Andamento', className: 'badge-info' },
-  concluido:    { label: 'Concluído',    className: 'badge-success' },
-  cancelado:    { label: 'Cancelado',    className: 'badge-danger' },
-  no_show:      { label: 'No-show',      className: 'badge-neutral' },
+const STATUS_LABELS: Record<string, { label: string; variant: 'amber' | 'purple' | 'green' | 'red' | 'neutral' }> = {
+  pendente:     { label: 'Pendente',     variant: 'amber' },
+  confirmado:   { label: 'Confirmado',   variant: 'purple' },
+  em_andamento: { label: 'Em Andamento', variant: 'purple' },
+  concluido:    { label: 'Concluído',    variant: 'green' },
+  cancelado:    { label: 'Cancelado',    variant: 'red' },
+  no_show:      { label: 'No-show',      variant: 'neutral' },
 }
+
+const card = { background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(157,78,221,0.15)', borderRadius: 16, padding: '1rem', position: 'relative' as const, overflow: 'hidden' as const }
+const shimmer = { position: 'absolute' as const, top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(157,78,221,0.35), transparent)' }
 
 export default async function AgendamentoDetalhe({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -55,7 +59,6 @@ export default async function AgendamentoDetalhe({ params }: { params: { id: str
 
   if (!ag) notFound()
 
-  // Buscar pagamento
   const [pag] = await db
     .select()
     .from(pagamentos)
@@ -65,20 +68,19 @@ export default async function AgendamentoDetalhe({ params }: { params: { id: str
   const status = STATUS_LABELS[ag.status ?? 'pendente']
 
   return (
-    <div className="p-4 lg:p-6 max-w-xl space-y-4">
+    <div className="p-4 lg:p-6 max-w-xl space-y-4" style={{ fontFamily: 'Nunito, sans-serif' }}>
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link
-          href="/admin/agendamentos"
-          className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-        >
-          <ChevronLeft className="w-5 h-5 text-gray-600" />
+        <Link href="/admin/agendamentos"
+          className="p-2 rounded-xl transition-colors"
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(157,78,221,0.15)' }}>
+          <ChevronLeft className="w-5 h-5" style={{ color: '#A0A0B8' }} />
         </Link>
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-gray-900">Agendamento</h1>
+          <h1 className="text-xl font-black text-white">Agendamento</h1>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className={status.className}>{status.label}</span>
-            <span className="text-xs text-gray-400">
+            <Badge variant={status.variant}>{status.label}</Badge>
+            <span className="text-xs" style={{ color: '#55556A' }}>
               {ag.dataHoraInicio ? formatDateTime(ag.dataHoraInicio) : '--'}
             </span>
           </div>
@@ -86,81 +88,83 @@ export default async function AgendamentoDetalhe({ params }: { params: { id: str
       </div>
 
       {/* Cliente */}
-      <div className="card space-y-2">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Cliente</p>
-        <p className="font-bold text-gray-900">{ag.clienteNome}</p>
-        <p className="text-sm text-gray-500">{ag.clienteEmail}</p>
+      <div style={card}>
+        <div style={shimmer} />
+        <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: '#55556A' }}>Cliente</p>
+        <p className="font-black text-white">{ag.clienteNome}</p>
+        <p className="text-sm mt-1" style={{ color: '#A0A0B8' }}>{ag.clienteEmail}</p>
         {ag.clienteTelefone && (
-          <a
-            href={`tel:${ag.clienteTelefone}`}
-            className="text-sm text-orange-600 font-medium"
-          >
+          <a href={`tel:${ag.clienteTelefone}`} className="text-sm font-bold mt-1 block" style={{ color: '#9D4EDD' }}>
             {ag.clienteTelefone}
           </a>
         )}
       </div>
 
       {/* Serviço */}
-      <div className="card space-y-2">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Serviço</p>
-        <p className="font-bold text-gray-900">{ag.servicoNome}</p>
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-500">{minutesToHours(ag.servicoDuracao)}</span>
-          <span className="font-bold text-orange-600">{formatCurrency(parseFloat(ag.precoTotal))}</span>
+      <div style={card}>
+        <div style={shimmer} />
+        <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: '#55556A' }}>Serviço</p>
+        <p className="font-black text-white">{ag.servicoNome}</p>
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-sm" style={{ color: '#A0A0B8' }}>{minutesToHours(ag.servicoDuracao)}</span>
+          <span className="font-black" style={{ color: '#C77DFF' }}>{formatCurrency(parseFloat(ag.precoTotal))}</span>
         </div>
       </div>
 
       {/* Veículo */}
       {ag.veiculoPlaca && (
-        <div className="card space-y-1">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Veículo</p>
-          <p className="font-bold text-gray-900">{ag.veiculoPlaca}</p>
-          <p className="text-sm text-gray-500">
+        <div style={card}>
+          <div style={shimmer} />
+          <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: '#55556A' }}>Veículo</p>
+          <p className="font-black text-white">{ag.veiculoPlaca}</p>
+          <p className="text-sm mt-1" style={{ color: '#A0A0B8' }}>
             {[ag.veiculoMarca, ag.veiculoModelo, ag.veiculoCor].filter(Boolean).join(' · ')}
           </p>
         </div>
       )}
 
-      {/* Observações */}
+      {/* Observações do cliente */}
       {ag.observacoes && (
-        <div className="card">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Obs. do Cliente</p>
-          <p className="text-sm text-gray-700">{ag.observacoes}</p>
+        <div style={card}>
+          <div style={shimmer} />
+          <p className="text-xs font-black uppercase tracking-widest mb-2" style={{ color: '#55556A' }}>Obs. do Cliente</p>
+          <p className="text-sm" style={{ color: '#A0A0B8' }}>{ag.observacoes}</p>
         </div>
       )}
 
       {/* Observações internas */}
       {ag.observacoesInternas && (
-        <div className="card bg-amber-50 border-amber-100">
-          <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-2">Obs. Internas</p>
-          <p className="text-sm text-amber-800">{ag.observacoesInternas}</p>
+        <div style={{ ...card, borderColor: 'rgba(251,191,36,0.25)' }}>
+          <div style={{ ...shimmer, background: 'linear-gradient(90deg, transparent, rgba(251,191,36,0.4), transparent)' }} />
+          <p className="text-xs font-black uppercase tracking-widest mb-2" style={{ color: '#92400E' }}>Obs. Internas</p>
+          <p className="text-sm" style={{ color: '#FCD34D' }}>{ag.observacoesInternas}</p>
         </div>
       )}
 
       {/* Avaliação */}
       {ag.avaliacao && (
-        <div className="card">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Avaliação</p>
-          <p className="text-amber-500 text-xl">
+        <div style={card}>
+          <div style={shimmer} />
+          <p className="text-xs font-black uppercase tracking-widest mb-2" style={{ color: '#55556A' }}>Avaliação</p>
+          <p className="text-xl" style={{ color: '#FBBF24' }}>
             {'★'.repeat(ag.avaliacao)}{'☆'.repeat(5 - ag.avaliacao)}
           </p>
           {ag.comentarioAvaliacao && (
-            <p className="text-sm text-gray-600 mt-1">{ag.comentarioAvaliacao}</p>
+            <p className="text-sm mt-1" style={{ color: '#A0A0B8' }}>{ag.comentarioAvaliacao}</p>
           )}
         </div>
       )}
 
       {/* Pagamento */}
       {pag && (
-        <div className="card space-y-2">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Pagamento</p>
+        <div style={card}>
+          <div style={shimmer} />
+          <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: '#55556A' }}>Pagamento</p>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">{pag.metodo ?? 'Pix'}</span>
-            <span className={`${pag.status === 'pago' ? 'badge-success' : 'badge-warning'}`}>
-              {pag.status}
-            </span>
+            <span className="text-sm" style={{ color: '#A0A0B8' }}>{pag.metodo ?? 'Pix'}</span>
+            <Badge variant={pag.status === 'pago' ? 'green' : 'amber'}>{pag.status}</Badge>
           </div>
-          <p className="font-bold text-gray-900">{formatCurrency(parseFloat(pag.valor))}</p>
+          <p className="font-black text-white mt-2">{formatCurrency(parseFloat(pag.valor))}</p>
         </div>
       )}
 
@@ -172,11 +176,8 @@ export default async function AgendamentoDetalhe({ params }: { params: { id: str
         editavel={['em_andamento', 'concluido'].includes(ag.status ?? '')}
       />
 
-      {/* Ações (client component) */}
-      <AgendamentoAcoes
-        id={ag.id}
-        statusAtual={ag.status ?? 'pendente'}
-      />
+      {/* Ações */}
+      <AgendamentoAcoes id={ag.id} statusAtual={ag.status ?? 'pendente'} />
     </div>
   )
 }

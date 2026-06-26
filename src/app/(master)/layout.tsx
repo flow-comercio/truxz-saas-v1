@@ -7,7 +7,7 @@ export default async function MasterLayout({ children }: { children: React.React
   const session = await getServerSession(authOptions)
   if (session?.user.role !== 'master') redirect('/login')
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ background: '#0A0A0F' }}>
       <MasterSidebar />
       <main className="lg:pl-60">
         <div className="pt-14 lg:pt-0">{children}</div>

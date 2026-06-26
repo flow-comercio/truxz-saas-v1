@@ -9,7 +9,7 @@ export default async function OperacionalLayout({ children }: { children: React.
     redirect('/login')
   }
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen pb-20" style={{ background: '#0A0A0F' }}>
       {children}
       <OperacionalNav />
     </div>

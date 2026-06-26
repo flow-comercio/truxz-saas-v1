@@ -7,6 +7,7 @@ import { usuarios } from '@/db/schema'
 import { eq, and, like, or, SQL } from 'drizzle-orm'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
+import { randomBytes } from 'crypto'
 
 const schema = z.object({
   nome: z.string().min(2),
@@ -60,7 +61,8 @@ export async function POST(req: NextRequest) {
   const parsed = schema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 })
 
-  const senhaHash = await bcrypt.hash(parsed.data.senha || 'truxz123', 10)
+  const senhaTemp = !parsed.data.senha ? randomBytes(6).toString('hex') : null
+  const senhaHash = await bcrypt.hash(parsed.data.senha ?? senhaTemp!, 10)
 
   try {
     const [novo] = await db.insert(usuarios).values({
@@ -72,7 +74,10 @@ export async function POST(req: NextRequest) {
       role: 'cliente',
     }).returning({ id: usuarios.id, nome: usuarios.nome, email: usuarios.email })
 
-    return NextResponse.json(novo, { status: 201 })
+    return NextResponse.json(
+      { ...novo, ...(senhaTemp ? { senhaTemporaria: senhaTemp } : {}) },
+      { status: 201 }
+    )
   } catch (e: any) {
     if (e.code === '23505') {
       return NextResponse.json({ error: 'Email já cadastrado' }, { status: 409 })

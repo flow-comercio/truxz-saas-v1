@@ -2,107 +2,90 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import {
-  LayoutDashboard, CalendarDays, Wrench, Users, DollarSign,
-  Car, LogOut, Menu, X, Settings, BarChart2
-} from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import {
+  LayoutDashboard, CalendarDays, Wrench, Users,
+  DollarSign, BarChart2, Settings, LogOut,
+  Package, ShoppingCart, FileText, Trophy, MessageSquare,
+} from 'lucide-react'
 
 const navItems = [
-  { href: '/admin/dashboard',     label: 'Dashboard',     icon: LayoutDashboard },
-  { href: '/admin/agendamentos',  label: 'Agendamentos',  icon: CalendarDays },
-  { href: '/admin/servicos',      label: 'Serviços',      icon: Wrench },
+  { href: '/admin/dashboard',     label: 'Cockpit',       icon: LayoutDashboard },
+  { href: '/admin/agendamentos',  label: 'Agenda',        icon: CalendarDays },
+  { href: '/admin/os',            label: 'Ordens',        icon: Wrench },
+  { href: '/admin/orcamentos',    label: 'Orçamentos',    icon: FileText },
+  { href: '/admin/vendas',        label: 'PDV',           icon: ShoppingCart },
+  { href: '/admin/estoque',       label: 'Estoque',       icon: Package },
+  { href: '/admin/crm',           label: 'CRM',           icon: MessageSquare },
   { href: '/admin/equipe',        label: 'Equipe',        icon: Users },
+  { href: '/admin/comissoes',     label: 'Comissões',     icon: Trophy },
   { href: '/admin/financeiro',    label: 'Financeiro',    icon: DollarSign },
   { href: '/admin/relatorios',    label: 'Relatórios',    icon: BarChart2 },
-  { href: '/admin/configuracoes', label: 'Configurações', icon: Settings },
+  { href: '/admin/configuracoes', label: 'Config',        icon: Settings },
+]
+
+const mobileNav = [
+  navItems[0],
+  navItems[1],
+  navItems[2],
+  navItems[4],
+  navItems[11],
 ]
 
 export function AdminSidebar() {
   const pathname = usePathname()
-  const [open, setOpen] = useState(false)
-
-  const NavContent = () => (
-    <>
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-gray-100">
-        <div className="w-9 h-9 rounded-xl bg-orange-600 flex items-center justify-center">
-          <img src="/logo-truxz.png" alt="TRUXZ" className="w-full h-full object-contain p-0.5" />
-        </div>
-        <div>
-          <p className="font-bold text-gray-900 text-sm">TRUXZ</p>
-          <p className="text-xs text-gray-500">Painel da Loja</p>
-        </div>
-      </div>
-      <nav className="flex-1 p-3 space-y-0.5">
-        {navItems.map(item => {
-          const Icon = item.icon
-          const active = pathname.startsWith(item.href)
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                active
-                  ? 'bg-orange-50 text-orange-700'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-              )}
-            >
-              <Icon className={cn('w-5 h-5', active ? 'text-orange-600' : 'text-gray-400')} strokeWidth={active ? 2.5 : 2} />
-              {item.label}
-            </Link>
-          )
-        })}
-      </nav>
-      <div className="p-3 border-t border-gray-100">
-        <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-700 transition-colors"
-        >
-          <LogOut className="w-4 h-4" />
-          Sair
-        </button>
-      </div>
-    </>
-  )
-
   return (
     <>
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-60 h-screen bg-white border-r border-gray-100 fixed left-0 top-0 z-40">
-        <NavContent />
+      <aside className="hidden lg:flex flex-col w-60 h-screen fixed left-0 top-0 z-40"
+        style={{ background: '#0A0816', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="flex items-center gap-3 px-5 py-5 border-b border-white/5">
+          <img src="/logo-truxz.png" alt="TRUXZ" className="h-6"
+            style={{ filter: 'brightness(0) invert(1)' }} />
+          <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">Cockpit</span>
+        </div>
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+          {navItems.map(item => {
+            const Icon = item.icon
+            const active = pathname.startsWith(item.href)
+            return (
+              <Link key={item.href} href={item.href}
+                className={cn('nav-item', active && 'active')}>
+                <Icon className="w-5 h-5" strokeWidth={active ? 2.5 : 2} />
+                {item.label}
+              </Link>
+            )
+          })}
+        </nav>
+        <div className="p-3 border-t border-white/5">
+          <button onClick={() => signOut({ callbackUrl: '/login' })}
+            className="nav-item w-full hover:text-[#FF375F]">
+            <LogOut className="w-5 h-5" /> Sair
+          </button>
+        </div>
       </aside>
 
-      {/* Mobile header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-100 px-4 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-orange-600 flex items-center justify-center">
-            <img src="/logo-truxz.png" alt="TRUXZ" className="w-full h-full object-contain p-0.5" />
-          </div>
-          <span className="font-bold text-gray-900 text-sm">TRUXZ</span>
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 glass-strong safe-bottom"
+        style={{ borderTop: '1px solid rgba(157,78,221,0.12)' }}>
+        <div className="flex pt-2.5 pb-1">
+          {mobileNav.map(item => {
+            const Icon = item.icon
+            const active = pathname.startsWith(item.href)
+            return (
+              <Link key={item.href} href={item.href}
+                className="flex-1 flex flex-col items-center gap-1 active:scale-95 transition-transform">
+                <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center',
+                  active ? 'bg-[rgba(157,78,221,0.2)]' : '')}>
+                  <Icon className={cn('w-5 h-5', active ? 'text-brand' : 'text-white/25')}
+                    strokeWidth={active ? 2.5 : 2} />
+                </div>
+                <span className={cn('text-[8px] font-black uppercase tracking-wider',
+                  active ? 'text-brand-light' : 'text-white/25')}>{item.label}</span>
+                {active && <div className="w-1 h-1 rounded-full bg-brand" />}
+              </Link>
+            )
+          })}
         </div>
-        <button onClick={() => setOpen(true)} className="p-2 rounded-lg hover:bg-gray-100">
-          <Menu className="w-5 h-5 text-gray-600" />
-        </button>
-      </header>
-
-      {/* Mobile drawer */}
-      {open && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
-          <aside className="relative w-64 h-full bg-white flex flex-col shadow-xl">
-            <button
-              onClick={() => setOpen(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-gray-100"
-            >
-              <X className="w-4 h-4 text-gray-600" />
-            </button>
-            <NavContent />
-          </aside>
-        </div>
-      )}
+      </nav>
     </>
   )
 }

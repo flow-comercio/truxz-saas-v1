@@ -8,7 +8,7 @@ import { createHmac } from 'crypto'
 /** Valida assinatura do webhook Asaas */
 function validarAssinatura(payload: string, signature: string): boolean {
   const secret = process.env.ASAAS_WEBHOOK_SECRET
-  if (!secret) return true // Dev: pula validação se secret não configurado
+  if (!secret) return false // Rejeita sem secret configurado — configure ASAAS_WEBHOOK_SECRET no .env
   const hash = createHmac('sha256', secret).update(payload).digest('hex')
   return hash === signature
 }

@@ -6,7 +6,9 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { slugify } from '@/lib/utils'
-import { enviarEmail } from '@/lib/mailer'
+import { enviarEmail, emailVerificacaoCadastro } from '@/lib/mailer'
+import { randomBytes } from 'crypto'
+import { tokens } from '@/db/schema'
 import { criarClienteAsaas, criarAssinaturaAsaas } from '@/lib/asaas'
 
 const schema = z.object({
@@ -87,15 +89,16 @@ export async function POST(req: NextRequest) {
     },
   }).returning()
 
-  // Cria admin da loja
+  // Cria admin da loja (emailVerificado: false até confirmar)
   const senhaHash = await bcrypt.hash(d.adminSenha, 10)
-  await db.insert(usuarios).values({
-    lojaId:   loja.id,
-    nome:     d.adminNome,
-    email:    d.adminEmail.toLowerCase(),
+  const [novoAdmin] = await db.insert(usuarios).values({
+    lojaId:          loja.id,
+    nome:            d.adminNome,
+    email:           d.adminEmail.toLowerCase(),
     senhaHash,
-    role:     'admin_loja',
-  })
+    role:            'admin_loja',
+    emailVerificado: false,
+  }).returning({ id: usuarios.id })
 
   // Integração Asaas (se não for trial)
   let asaasInfo: any = null
@@ -132,54 +135,32 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Envia email de boas-vindas
-  const linkAdmin = `https://${slug}.${BASE_DOMAIN}/login`
+  // Gera token de verificação de e-mail (24h)
+  const tokenVerif = randomBytes(32).toString('hex')
+  await db.insert(tokens).values({
+    usuarioId: novoAdmin.id,
+    token:     tokenVerif,
+    tipo:      'verificar_email',
+    expiraEm:  new Date(Date.now() + 24 * 60 * 60 * 1000),
+  })
+
+  // Envia e-mail de confirmação
+  const linkVerif = `${NEXTAUTH_URL}/api/auth/verificar-email?token=${tokenVerif}`
   await enviarEmail({
     para:    d.adminEmail,
-    assunto: `🚗 Sua loja "${d.nomeLoja}" está pronta! — TRUXZ`,
-    html: `
-      <!DOCTYPE html>
-      <html lang="pt-BR">
-      <body style="font-family:Inter,Arial,sans-serif;background:#f9fafb;margin:0;padding:0">
-        <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.06)">
-          <div style="background:#ea580c;padding:32px;text-align:center">
-            <h1 style="color:#fff;margin:0;font-size:22px">🚗 TRUXZ</h1>
-          </div>
-          <div style="padding:32px">
-            <h2 style="color:#111827;font-size:18px;margin:0 0 8px">Sua loja está no ar!</h2>
-            <p style="color:#6b7280;font-size:14px;margin:0 0 24px">
-              Olá, <strong>${d.adminNome}</strong>! A loja <strong>${d.nomeLoja}</strong> foi criada com sucesso.
-              Você tem <strong>14 dias de trial gratuito</strong>.
-            </p>
-            <div style="background:#f9fafb;border-radius:12px;padding:20px;margin-bottom:24px">
-              <p style="margin:0 0 8px;font-size:13px;color:#374151"><strong>🌐 Seu link público:</strong></p>
-              <a href="https://${slug}.${BASE_DOMAIN}" style="color:#ea580c;font-weight:700">
-                https://${slug}.${BASE_DOMAIN}
-              </a>
-              <p style="margin:16px 0 8px;font-size:13px;color:#374151"><strong>🔐 Painel admin:</strong></p>
-              <a href="${linkAdmin}" style="color:#ea580c;font-weight:700">${linkAdmin}</a>
-              <p style="margin:16px 0 8px;font-size:13px;color:#374151"><strong>📧 Email:</strong> ${d.adminEmail}</p>
-              <p style="margin:0;font-size:13px;color:#374151"><strong>🔑 Senha:</strong> a que você cadastrou</p>
-            </div>
-            <a href="${linkAdmin}" style="display:inline-block;background:#ea580c;color:#fff;font-weight:700;font-size:14px;padding:14px 28px;border-radius:10px;text-decoration:none">
-              Acessar meu painel
-            </a>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+    assunto: `Confirme seu e-mail — TRUXZ`,
+    html:    emailVerificacaoCadastro(d.adminNome, d.nomeLoja, linkVerif),
   }).catch(e => console.error('[CADASTRO] Email falhou:', e))
 
   return NextResponse.json({
-    ok: true,
+    ok:                  true,
+    verificacaoPendente: true,
     loja: {
-      id:        loja.id,
+      id:          loja.id,
       slug,
-      nome:      d.nomeLoja,
+      nome:        d.nomeLoja,
       linkPublico: `https://${slug}.${BASE_DOMAIN}`,
-      linkAdmin,
-      trial:     true,
+      trial:       true,
       trialExpira: trialExpira.toISOString(),
     },
     asaas: asaasInfo,

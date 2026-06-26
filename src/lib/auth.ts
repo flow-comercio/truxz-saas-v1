@@ -33,6 +33,10 @@ export const authOptions: NextAuthOptions = {
         const senhaOk = await bcrypt.compare(credentials.senha, user.senhaHash)
         if (!senhaOk) return null
 
+        if (user.emailVerificado === false) {
+          throw new Error('EmailNaoVerificado')
+        }
+
         // Update last access
         await db
           .update(usuarios)

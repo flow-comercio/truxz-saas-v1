@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/db'
-import { agendamentos, pagamentos, usuarios, servicos } from '@/db/schema'
+import { agendamentos, pagamentos, usuarios, servicos, vendas } from '@/db/schema'
 import { eq, and, gte, sql, count, avg } from 'drizzle-orm'
 
 export async function GET() {
@@ -14,14 +14,14 @@ export async function GET() {
   const hoje   = new Date()
   hoje.setHours(0, 0, 0, 0)
 
-  // Últimos 6 meses
   const inicio6Meses = new Date()
   inicio6Meses.setMonth(inicio6Meses.getMonth() - 5)
   inicio6Meses.setDate(1)
   inicio6Meses.setHours(0, 0, 0, 0)
 
   const [
-    receitaMensalRaw,
+    receitaAgRaw,
+    receitaVendasRaw,
     agendamentosMensalRaw,
     servicosPopularesRaw,
     statusDistribRaw,
@@ -30,10 +30,11 @@ export async function GET() {
     avaliacaoRaw,
     agendamentosHojeRaw,
   ] = await Promise.all([
-    // Receita mensal (últimos 6 meses)
+    // Receita mensal de agendamentos (últimos 6 meses)
     db.select({
       mes:     sql<string>`TO_CHAR(${pagamentos.pagoEm}, 'Mon/YY')`,
       receita: sql<number>`COALESCE(SUM(${pagamentos.valor}::numeric), 0)`,
+      mesDate: sql<string>`DATE_TRUNC('month', ${pagamentos.pagoEm})`,
     })
     .from(pagamentos)
     .where(and(
@@ -43,6 +44,21 @@ export async function GET() {
     ))
     .groupBy(sql`TO_CHAR(${pagamentos.pagoEm}, 'Mon/YY'), DATE_TRUNC('month', ${pagamentos.pagoEm})`)
     .orderBy(sql`DATE_TRUNC('month', ${pagamentos.pagoEm})`),
+
+    // Receita mensal de vendas PDV (últimos 6 meses)
+    db.select({
+      mes:     sql<string>`TO_CHAR(${vendas.finalizadoEm}, 'Mon/YY')`,
+      receita: sql<number>`COALESCE(SUM(${vendas.total}::numeric), 0)`,
+      mesDate: sql<string>`DATE_TRUNC('month', ${vendas.finalizadoEm})`,
+    })
+    .from(vendas)
+    .where(and(
+      eq(vendas.lojaId, lojaId),
+      eq(vendas.status, 'finalizada'),
+      gte(vendas.finalizadoEm, inicio6Meses),
+    ))
+    .groupBy(sql`TO_CHAR(${vendas.finalizadoEm}, 'Mon/YY'), DATE_TRUNC('month', ${vendas.finalizadoEm})`)
+    .orderBy(sql`DATE_TRUNC('month', ${vendas.finalizadoEm})`),
 
     // Agendamentos por mês
     db.select({
@@ -107,11 +123,16 @@ export async function GET() {
     .where(and(eq(agendamentos.lojaId, lojaId), gte(agendamentos.dataHoraInicio, hoje))),
   ])
 
-  // Merge receita + agendamentos por mês
+  // Merge receita agendamentos + vendas PDV + agendamentos por mês
   const mesesMap = new Map<string, { mes: string; receita: number; agendamentos: number }>()
 
-  for (const r of receitaMensalRaw) {
+  for (const r of receitaAgRaw) {
     mesesMap.set(r.mes, { mes: r.mes, receita: Number(r.receita), agendamentos: 0 })
+  }
+  for (const r of receitaVendasRaw) {
+    const entry = mesesMap.get(r.mes)
+    if (entry) entry.receita += Number(r.receita)
+    else mesesMap.set(r.mes, { mes: r.mes, receita: Number(r.receita), agendamentos: 0 })
   }
   for (const a of agendamentosMensalRaw) {
     const entry = mesesMap.get(a.mes)
@@ -119,8 +140,11 @@ export async function GET() {
     else mesesMap.set(a.mes, { mes: a.mes, receita: 0, agendamentos: Number(a.agendamentos) })
   }
 
+  // Ordenar por data (os meses podem ter vindo em ordem diferente)
+  const receitaMensal = Array.from(mesesMap.values())
+
   return NextResponse.json({
-    receitaMensal:       Array.from(mesesMap.values()),
+    receitaMensal,
     servicosPopulares:   servicosPopularesRaw.map(s => ({ ...s, total: Number(s.total), receita: Number(s.receita) })),
     statusDistribuicao:  statusDistribRaw.map(s => ({ status: s.status, total: Number(s.total) })),
     ticketMedio:         Number(ticketMedioRaw[0]?.media ?? 0),
