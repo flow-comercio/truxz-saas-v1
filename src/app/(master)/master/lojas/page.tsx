@@ -2,9 +2,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, Store, MapPin, Phone, Loader2, CheckCircle, AlertCircle, Clock } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
+import { Plus, Store, MapPin, Phone, Loader2 } from 'lucide-react'
+import { formatDate, getInitials } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { BottomSheet } from '@/components/ui/bottom-sheet'
 
 interface Loja {
   id: string; nome: string; slug: string; email: string
@@ -12,90 +13,128 @@ interface Loja {
   status: string; planoNome: string | null; criadoEm: string
 }
 
-const STATUS_CONFIG: Record<string, { label: string; variant: 'green' | 'amber' | 'neutral' | 'red' }> = {
-  ativa:    { label: 'Ativa',    variant: 'green' },
-  trial:    { label: 'Trial',    variant: 'amber' },
-  inativa:  { label: 'Inativa',  variant: 'neutral' },
-  suspensa: { label: 'Suspensa', variant: 'red' },
+const STATUS_CFG: Record<string, { label: string; variant: 'green' | 'amber' | 'neutral' | 'red'; color: string; barColor: string }> = {
+  ativa:    { label: 'Ativa',    variant: 'green',   color: '#34C759', barColor: '#34C759' },
+  trial:    { label: 'Trial',    variant: 'amber',   color: '#FF9F0A', barColor: '#FF9F0A' },
+  inativa:  { label: 'Inativa',  variant: 'neutral', color: '#55556A', barColor: '#55556A' },
+  suspensa: { label: 'Suspensa', variant: 'red',     color: '#FF375F', barColor: '#FF375F' },
 }
 
-const card = { background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(157,78,221,0.15)', borderRadius: 16, padding: '1rem', position: 'relative' as const, overflow: 'hidden' as const }
-const shimmer = { position: 'absolute' as const, top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(157,78,221,0.35), transparent)' }
-const modalStyle = { background: '#12101E', border: '1px solid rgba(157,78,221,0.25)', borderRadius: 16 }
+const FORM_EMPTY = { nome: '', email: '', telefone: '', cidade: '', estado: '', adminNome: '', adminEmail: '', adminSenha: 'Win7830@' }
 
 export default function LojasPage() {
   const qc = useQueryClient()
-  const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState({ nome: '', email: '', telefone: '', cidade: '', estado: '', adminNome: '', adminEmail: '', adminSenha: 'Win7830@' })
+  const [showSheet, setShowSheet] = useState(false)
+  const [form, setForm] = useState(FORM_EMPTY)
 
   const { data: lojas = [], isLoading } = useQuery<Loja[]>({
     queryKey: ['lojas'],
-    queryFn: () => fetch('/api/lojas').then(r => r.json()),
+    queryFn:  () => fetch('/api/lojas').then(r => r.json()),
   })
 
   const createMutation = useMutation({
-    mutationFn: (data: typeof form) =>
+    mutationFn: (data: typeof FORM_EMPTY) =>
       fetch('/api/lojas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
         .then(async r => { const json = await r.json(); if (!r.ok) throw new Error(json.error || 'Erro'); return json }),
     onSuccess: () => {
       toast.success('Loja criada! Trial de 14 dias iniciado.')
       qc.invalidateQueries({ queryKey: ['lojas'] })
-      setShowModal(false)
-      setForm({ nome: '', email: '', telefone: '', cidade: '', estado: '', adminNome: '', adminEmail: '', adminSenha: 'Win7830@' })
+      setShowSheet(false); setForm(FORM_EMPTY)
     },
     onError: (e: Error) => toast.error(e.message),
   })
 
+  const ativas    = lojas.filter(l => l.status === 'ativa').length
+  const trial     = lojas.filter(l => l.status === 'trial').length
+  const suspensas = lojas.filter(l => l.status === 'suspensa').length
+
   return (
-    <div className="p-4 lg:p-6 space-y-5" style={{ fontFamily: 'Nunito, sans-serif' }}>
+    <div className="p-4 lg:p-6 max-w-2xl space-y-5">
+
+      {/* ── HEADER ─────────────────────────────────── */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-black text-white">Lojas</h1>
-        <button onClick={() => setShowModal(true)} className="btn-primary text-xs px-3 py-2">
+        <div>
+          <p className="section-tag mb-1">Master</p>
+          <h1 className="text-xl font-black text-white">Lojas</h1>
+        </div>
+        <button onClick={() => setShowSheet(true)} className="btn-primary text-xs px-4" style={{ height: 38 }}>
           <Plus className="w-3.5 h-3.5" /> Nova Loja
         </button>
       </div>
 
+      {/* ── STAT CHIPS ─────────────────────────────── */}
+      {lojas.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {[
+            { label: 'Total',     value: lojas.length, color: '#9D4EDD' },
+            { label: 'Ativas',    value: ativas,        color: '#34C759' },
+            { label: 'Trial',     value: trial,         color: '#FF9F0A' },
+            { label: 'Suspensas', value: suspensas,     color: '#FF375F' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="flex-shrink-0 card px-4 py-2.5 flex items-center gap-2">
+              <span className="text-lg font-black text-white">{value}</span>
+              <span className="text-xs font-bold" style={{ color }}>{label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── LISTA ──────────────────────────────────── */}
       {isLoading ? (
         <div className="flex justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#9D4EDD' }} />
+          <Loader2 className="w-6 h-6 animate-spin text-[#9D4EDD]" />
         </div>
       ) : lojas.length === 0 ? (
-        <div className="text-center py-12 rounded-2xl"
-          style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(157,78,221,0.1)' }}>
-          <Store className="w-10 h-10 mx-auto mb-3" style={{ color: '#55556A' }} />
-          <p className="font-semibold" style={{ color: '#A0A0B8' }}>Nenhuma loja cadastrada</p>
-          <button onClick={() => setShowModal(true)} className="btn-primary mt-4 mx-auto">Criar primeira loja</button>
+        <div className="text-center py-14 card">
+          <Store className="w-10 h-10 mx-auto mb-3 text-white/15" />
+          <p className="font-bold text-white/35 mb-4">Nenhuma loja cadastrada</p>
+          <button onClick={() => setShowSheet(true)} className="btn-primary mx-auto px-6">
+            Criar primeira loja
+          </button>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {lojas.map(loja => {
-            const cfg = STATUS_CONFIG[loja.status] ?? STATUS_CONFIG.inativa
+            const cfg = STATUS_CFG[loja.status] ?? STATUS_CFG.inativa
             return (
-              <div key={loja.id} style={card}>
-                <div style={shimmer} />
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div>
-                    <p className="font-black text-white">{loja.nome}</p>
-                    <p className="text-xs" style={{ color: '#55556A' }}>/{loja.slug}</p>
+              <div key={loja.id} className="card p-0 overflow-hidden flex">
+                {/* Barra lateral por status */}
+                <div className="w-1 flex-shrink-0" style={{ background: cfg.barColor }} />
+                <div className="flex-1 p-4">
+                  <div className="flex items-start gap-3">
+                    {/* Avatar com iniciais */}
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-black"
+                      style={{ background: `${cfg.color}12`, color: cfg.color, border: `1.5px solid ${cfg.color}30` }}>
+                      {getInitials(loja.nome)}
+                    </div>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-black text-white text-sm">{loja.nome}</p>
+                        <Badge variant={cfg.variant}>{cfg.label}</Badge>
+                      </div>
+                      <p className="text-[10px] text-white/25 mt-0.5 font-mono">/{loja.slug}</p>
+                      <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                        {loja.cidade && (
+                          <span className="flex items-center gap-1 text-xs text-white/30">
+                            <MapPin className="w-3 h-3" />
+                            {loja.cidade}{loja.estado ? `, ${loja.estado}` : ''}
+                          </span>
+                        )}
+                        {loja.telefone && (
+                          <span className="flex items-center gap-1 text-xs text-white/30">
+                            <Phone className="w-3 h-3" />{loja.telefone}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <Badge variant={cfg.variant}>{cfg.label}</Badge>
-                </div>
-                <div className="space-y-1">
-                  {loja.cidade && (
-                    <div className="flex items-center gap-2 text-xs" style={{ color: '#A0A0B8' }}>
-                      <MapPin className="w-3 h-3" />
-                      {loja.cidade}{loja.estado ? `, ${loja.estado}` : ''}
-                    </div>
-                  )}
-                  {loja.telefone && (
-                    <div className="flex items-center gap-2 text-xs" style={{ color: '#A0A0B8' }}>
-                      <Phone className="w-3 h-3" />{loja.telefone}
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid rgba(157,78,221,0.1)' }}>
-                  <span className="text-xs" style={{ color: '#55556A' }}>Cadastro: {formatDate(loja.criadoEm)}</span>
-                  {loja.planoNome && <Badge variant="purple">{loja.planoNome}</Badge>}
+                  {/* Footer */}
+                  <div className="flex items-center justify-between mt-3 pt-3"
+                    style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span className="text-[10px] text-white/20">Criada em {formatDate(loja.criadoEm)}</span>
+                    {loja.planoNome && <Badge variant="purple">{loja.planoNome}</Badge>}
+                  </div>
                 </div>
               </div>
             )
@@ -103,67 +142,72 @@ export default function LojasPage() {
         </div>
       )}
 
-      {/* Modal Nova Loja */}
-      {showModal && (
-        <div className="fixed inset-0 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
-          style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}>
-          <div className="relative w-full sm:max-w-lg p-5 shadow-2xl max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl" style={modalStyle}>
-            <div className="absolute top-0 left-0 right-0 h-px rounded-t-2xl"
-              style={{ background: 'linear-gradient(90deg, transparent, rgba(157,78,221,0.5), transparent)' }} />
-            <h2 className="font-black text-white mb-5">Nova Loja</h2>
-            <div className="space-y-4">
-              <p className="text-xs font-black uppercase tracking-widest" style={{ color: '#55556A' }}>Dados da Loja</p>
-              <div>
-                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: '#55556A' }}>Nome da Loja *</label>
-                <input className="input" value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: TRUXZ Centro" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: '#55556A' }}>Email *</label>
-                  <input type="email" className="input" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="loja@email.com" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: '#55556A' }}>Telefone</label>
-                  <input className="input" value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))} placeholder="(00) 00000-0000" />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2">
-                  <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: '#55556A' }}>Cidade</label>
-                  <input className="input" value={form.cidade} onChange={e => setForm(f => ({ ...f, cidade: e.target.value }))} placeholder="São Paulo" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: '#55556A' }}>UF</label>
-                  <input className="input" value={form.estado} maxLength={2} onChange={e => setForm(f => ({ ...f, estado: e.target.value.toUpperCase() }))} placeholder="SP" />
-                </div>
-              </div>
-              <p className="text-xs font-black uppercase tracking-widest pt-2" style={{ color: '#55556A' }}>Admin da Loja</p>
-              <div>
-                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: '#55556A' }}>Nome do Admin *</label>
-                <input className="input" value={form.adminNome} onChange={e => setForm(f => ({ ...f, adminNome: e.target.value }))} placeholder="Nome completo" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: '#55556A' }}>Email do Admin *</label>
-                <input type="email" className="input" value={form.adminEmail} onChange={e => setForm(f => ({ ...f, adminEmail: e.target.value }))} placeholder="admin@loja.com" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider" style={{ color: '#55556A' }}>Senha Inicial *</label>
-                <input className="input" value={form.adminSenha} onChange={e => setForm(f => ({ ...f, adminSenha: e.target.value }))} />
-              </div>
+      {/* ── BOTTOM SHEET: NOVA LOJA ────────────────── */}
+      <BottomSheet open={showSheet} onClose={() => setShowSheet(false)} title="Nova Loja">
+        <div className="space-y-4">
+          <p className="text-[10px] font-black uppercase tracking-widest text-white/25">Dados da Loja</p>
+
+          <div>
+            <label className="label">Nome da Loja *</label>
+            <input className="input" placeholder="Ex: TRUXZ Centro"
+              value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Email *</label>
+              <input type="email" className="input" placeholder="loja@email.com"
+                value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
             </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">Cancelar</button>
-              <button
-                onClick={() => createMutation.mutate(form)}
-                disabled={!form.nome || !form.email || !form.adminNome || !form.adminEmail || createMutation.isPending}
-                className="btn-primary flex-1">
-                {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                {createMutation.isPending ? 'Criando...' : 'Criar Loja'}
-              </button>
+            <div>
+              <label className="label">Telefone</label>
+              <input className="input" placeholder="(00) 00000-0000"
+                value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))} />
             </div>
           </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <label className="label">Cidade</label>
+              <input className="input" placeholder="São Paulo"
+                value={form.cidade} onChange={e => setForm(f => ({ ...f, cidade: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">UF</label>
+              <input className="input" placeholder="SP" maxLength={2}
+                value={form.estado} onChange={e => setForm(f => ({ ...f, estado: e.target.value.toUpperCase() }))} />
+            </div>
+          </div>
+
+          <p className="text-[10px] font-black uppercase tracking-widest text-white/25 pt-2">Admin da Loja</p>
+
+          <div>
+            <label className="label">Nome do Admin *</label>
+            <input className="input" placeholder="Nome completo"
+              value={form.adminNome} onChange={e => setForm(f => ({ ...f, adminNome: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Email do Admin *</label>
+            <input type="email" className="input" placeholder="admin@loja.com"
+              value={form.adminEmail} onChange={e => setForm(f => ({ ...f, adminEmail: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Senha Inicial *</label>
+            <input className="input" value={form.adminSenha}
+              onChange={e => setForm(f => ({ ...f, adminSenha: e.target.value }))} />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => setShowSheet(false)} className="btn-secondary flex-1">Cancelar</button>
+            <button
+              onClick={() => createMutation.mutate(form)}
+              disabled={!form.nome || !form.email || !form.adminNome || !form.adminEmail || createMutation.isPending}
+              className="btn-primary flex-1">
+              {createMutation.isPending
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Criando...</>
+                : 'Criar Loja'}
+            </button>
+          </div>
         </div>
-      )}
+      </BottomSheet>
     </div>
   )
 }
